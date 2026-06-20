@@ -63,7 +63,6 @@ const ArticleSchema = new Schema(
   }
 );
 
-ArticleSchema.index({ slug: 1 }, { unique: true });
 ArticleSchema.index({ category: 1, status: 1, publishedAt: -1 });
 ArticleSchema.index({ isBreaking: 1, status: 1, publishedAt: -1 });
 ArticleSchema.index({ isFeatured: 1, status: 1, publishedAt: -1 });

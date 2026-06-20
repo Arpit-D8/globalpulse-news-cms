@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FaArrowLeft, FaFloppyDisk } from "react-icons/fa6";
 import Link from "next/link";
@@ -60,14 +60,16 @@ export function AdminArticleForm({ article, mode }: AdminArticleFormProps) {
 
   function updateField(
     event:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLTextAreaElement>
-      | React.ChangeEvent<HTMLSelectElement>
+      | ChangeEvent<HTMLInputElement>
+      | ChangeEvent<HTMLTextAreaElement>
+      | ChangeEvent<HTMLSelectElement>
   ) {
-    const { name, value } = event.target;
+    const target = event.target;
+    const { name, value } = target;
 
-    if (event.target instanceof HTMLInputElement && event.target.type === "checkbox") {
-      setForm((current) => ({ ...current, [name]: event.target.checked }));
+    if (target instanceof HTMLInputElement && target.type === "checkbox") {
+      const checked = target.checked;
+      setForm((current) => ({ ...current, [name]: checked }));
       return;
     }
 

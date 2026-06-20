@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { CATEGORY_CONFIG } from "@/lib/constants";
 import type { Article } from "@/lib/types";
@@ -38,14 +39,17 @@ export function ArticleCard({
       {!isCompact && (
         <Link
           href={`/articles/${article.slug}`}
-          className={`block overflow-hidden bg-neutral-200 ${
+          className={`relative block overflow-hidden bg-neutral-200 ${
             isHero ? "min-h-80 md:min-h-[480px]" : "aspect-[16/10]"
           }`}
         >
-          <img
+          <Image
             src={image}
             alt=""
-            loading={priority ? "eager" : "lazy"}
+            fill
+            priority={priority}
+            unoptimized
+            sizes={isHero ? "(min-width: 768px) 58vw, 100vw" : "(min-width: 1024px) 33vw, 100vw"}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
         </Link>

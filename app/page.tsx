@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { FaArrowRight, FaPlus } from "react-icons/fa6";
@@ -32,10 +33,14 @@ export default async function Home() {
               <ArticleCard article={hero} priority variant="hero" />
             ) : (
               <div className="grid bg-white md:grid-cols-[1.4fr_1fr]">
-                <div className="min-h-80 overflow-hidden bg-neutral-200 md:min-h-[480px]">
-                  <img
+                <div className="relative min-h-80 overflow-hidden bg-neutral-200 md:min-h-[480px]">
+                  <Image
                     src={FALLBACK_HERO_IMAGE}
                     alt=""
+                    fill
+                    priority
+                    unoptimized
+                    sizes="(min-width: 768px) 58vw, 100vw"
                     className="h-full w-full object-cover"
                   />
                 </div>

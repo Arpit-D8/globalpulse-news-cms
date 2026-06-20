@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FaArrowLeft } from "react-icons/fa6";
@@ -107,11 +108,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         </div>
 
         <div className="mx-auto max-w-7xl px-4">
-          <img
+          <div className="relative aspect-[16/8] max-h-[620px] min-h-72 w-full overflow-hidden bg-neutral-200">
+            <Image
             src={getArticleImage(article)}
             alt=""
+            fill
+            priority
+            unoptimized
+            sizes="100vw"
             className="max-h-[620px] w-full object-cover"
           />
+          </div>
         </div>
 
         <div className="mx-auto grid max-w-5xl gap-10 px-4 py-10 lg:grid-cols-[1fr_280px]">
