@@ -1,106 +1,101 @@
-import { revalidatePath } from "next/cache";
-import { NextRequest, NextResponse } from "next/server";
-import ArticleModel from "@/models/Article";
-import {
-  buildArticlePayload,
-  getArticleById,
-  serializeArticle,
-} from "@/lib/articles";
-import { CATEGORY_CONFIG } from "@/lib/constants";
-import { connectDB } from "@/lib/mongodb";
-import type { Article, ArticleMutationInput } from "@/lib/types";
-import type { SerializedArticleSource } from "@/lib/articles";
+import { getArticleById, updateArticle, deleteArticle } from "@/lib/services/article.service";
+import { handleService, successResponse } from "@/lib/api/response";
+import { requireAdmin } from "@/lib/auth-guard";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { validate } from "@/lib/validation/shared";
+import { articleUpdateSchema } from "@/lib/validation/article";
+import type { ArticleUpdateServiceInput } from "@/lib/types/article";
 
-export const dynamic = "force-dynamic";
+// ---------------------------------------------------------------------------
+// GET /api/articles/[id]
+// ---------------------------------------------------------------------------
 
-type ArticleRouteContext = {
-  params: Promise<{ id: string }>;
-};
-
-function apiError(message: string, status = 400) {
-  return NextResponse.json({ error: message }, { status });
-}
-
-function revalidateArticle(article?: Article | null) {
-  revalidatePath("/");
-  revalidatePath("/admin");
-
-  if (!article) {
-    return;
-  }
-
-  revalidatePath(`/articles/${article.slug}`);
-  revalidatePath(`/category/${CATEGORY_CONFIG[article.category].slug}`);
-}
-
+/**
+ * Get a single article by ID.
+ */
 export async function GET(
-  _request: NextRequest,
-  { params }: ArticleRouteContext
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const article = await getArticleById(id);
-
-  if (!article) {
-    return apiError("Article not found.", 404);
-  }
-
-  return NextResponse.json({ article });
+  return handleService(async () => {
+    const { id } = await params;
+    const article = await getArticleById(id);
+    return successResponse(article);
+  });
 }
 
-export async function PUT(request: NextRequest, { params }: ArticleRouteContext) {
-  const { id } = await params;
-  const existing = await getArticleById(id);
+// ---------------------------------------------------------------------------
+// PUT /api/articles/[id]
+// ---------------------------------------------------------------------------
 
-  if (!existing) {
-    return apiError("Article not found.", 404);
+/**
+ * Update an existing article by ID.
+ *
+ * Field transformation: ArticleForm sends authorId / categoryId /
+ * featuredImageId / tags / seoTitle / seoDescription / canonicalUrl.  These
+ * are mapped to Mongoose field names (author / category / featuredImage)
+ * after Zod validation so the service layer receives the correct shape.
+ */
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  // Rate limit: 30 requests/minute/IP
+  const rateLimitResult = await checkRateLimit(request, "admin:write");
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
 
-  await connectDB();
+  await requireAdmin();
+  return handleService(async () => {
+    const { id } = await params;
+    const body = await request.json();
+    const data = validate(articleUpdateSchema, body);
 
-  try {
-    const body = (await request.json()) as ArticleMutationInput;
-    const { payload, errors } = await buildArticlePayload(body, existing);
+    // Transform ArticleForm field names → Mongoose field names.
+    const transformed: Record<string, unknown> = {};
+    if (data.title !== undefined) transformed.title = data.title;
+    if (data.slug !== undefined) transformed.slug = data.slug;
+    if (data.summary !== undefined) transformed.summary = data.summary;
+    if (data.content !== undefined) transformed.content = data.content;
+    if (data.authorId !== undefined) transformed.author = data.authorId;
+    if (data.categoryId !== undefined) transformed.category = data.categoryId;
+    if (data.featuredImageId !== undefined) transformed.featuredImage = data.featuredImageId;
+    if (data.tags !== undefined) transformed.tags = data.tags;
+    if (data.status !== undefined) transformed.status = data.status;
+    if (data.isBreaking !== undefined) transformed.isBreaking = data.isBreaking;
+    if (data.isFeatured !== undefined) transformed.isFeatured = data.isFeatured;
+    if (data.seoTitle !== undefined) transformed.seoTitle = data.seoTitle;
+    if (data.seoDescription !== undefined) transformed.seoDescription = data.seoDescription;
+    if (data.canonicalUrl !== undefined) transformed.canonicalUrl = data.canonicalUrl;
+    if (data.publishedAt !== undefined) transformed.publishedAt = new Date(data.publishedAt);
 
-    if (!payload) {
-      return apiError(errors.join(" "));
-    }
-
-    const updated = await ArticleModel.findByIdAndUpdate(id, payload, {
-      new: true,
-      runValidators: true,
-    }).lean<SerializedArticleSource | null>();
-
-    if (!updated) {
-      return apiError("Article not found.", 404);
-    }
-
-    const serialized = serializeArticle(updated);
-
-    revalidateArticle(existing);
-    revalidateArticle(serialized);
-
-    return NextResponse.json({ article: serialized });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to update article.";
-    return apiError(message, 500);
-  }
+    const article = await updateArticle(id, transformed as ArticleUpdateServiceInput);
+    return successResponse(article);
+  });
 }
 
+// ---------------------------------------------------------------------------
+// DELETE /api/articles/[id]
+// ---------------------------------------------------------------------------
+
+/**
+ * Delete an article by ID.
+ */
 export async function DELETE(
-  _request: NextRequest,
-  { params }: ArticleRouteContext
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const existing = await getArticleById(id);
-
-  if (!existing) {
-    return apiError("Article not found.", 404);
+  // Rate limit: 30 requests/minute/IP
+  const rateLimitResult = await checkRateLimit(request, "admin:write");
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
 
-  await connectDB();
-  await ArticleModel.findByIdAndDelete(id);
-  revalidateArticle(existing);
-
-  return NextResponse.json({ ok: true });
+  await requireAdmin();
+  return handleService(async () => {
+    const { id } = await params;
+    await deleteArticle(id);
+    return successResponse({});
+  });
 }

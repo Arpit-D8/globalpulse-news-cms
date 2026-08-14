@@ -1,71 +1,93 @@
-import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import ArticleModel from "@/models/Article";
-import {
-  buildArticlePayload,
-  getAdminArticles,
-  getPublishedArticles,
-  serializeArticle,
-} from "@/lib/articles";
-import { CATEGORY_CONFIG, getCategoryFromSlug } from "@/lib/constants";
-import { connectDB } from "@/lib/mongodb";
-import type { ArticleMutationInput } from "@/lib/types";
-import type { SerializedArticleSource } from "@/lib/articles";
+import { listArticles, createArticle } from "@/lib/services/article.service";
+import { successResponse, handleService } from "@/lib/api/response";
+import { requireAdmin } from "@/lib/auth-guard";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { validate } from "@/lib/validation/shared";
+import { articleCreateSchema } from "@/lib/validation/article";
 
-export const dynamic = "force-dynamic";
+// ---------------------------------------------------------------------------
+// GET /api/articles
+// ---------------------------------------------------------------------------
 
-function apiError(message: string, status = 400) {
-  return NextResponse.json({ error: message }, { status });
-}
-
-function revalidateArticleLists(categorySlug?: string) {
-  revalidatePath("/");
-  revalidatePath("/admin");
-
-  if (categorySlug) {
-    revalidatePath(`/category/${categorySlug}`);
-  }
-}
-
-export async function GET(request: NextRequest) {
-  const categorySlug = request.nextUrl.searchParams.get("category");
-  const status = request.nextUrl.searchParams.get("status");
-  const category = categorySlug ? getCategoryFromSlug(categorySlug) : undefined;
-
-  if (categorySlug && !category) {
-    return apiError("Invalid category.");
-  }
-
-  const articles =
-    status === "all"
-      ? await getAdminArticles()
-      : await getPublishedArticles({ category, limit: 100 });
-
-  return NextResponse.json({ articles });
-}
-
-export async function POST(request: NextRequest) {
-  await connectDB();
-
+/**
+ * List articles with search, filter, sort, and pagination.
+ *
+ * Query params:
+ *   - search   : substring match on headline (case-insensitive)
+ *   - category : exact category match
+ *   - status   : "published" | "draft"
+ *   - sort     : "newest" | "oldest"
+ *   - page     : page number (default 1)
+ *   - limit    : items per page (default 10)
+ */
+export async function GET(request: Request) {
   try {
-    const body = (await request.json()) as ArticleMutationInput;
-    const { payload, errors } = await buildArticlePayload(body);
+    const { searchParams } = new URL(request.url);
 
-    if (!payload) {
-      return apiError(errors.join(" "));
-    }
+    const query = {
+      search: searchParams.get("search") || "",
+      category: searchParams.get("category") || "",
+      status: searchParams.get("status") || "",
+      sort: (searchParams.get("sort") || "newest") as "newest" | "oldest",
+      page: Math.max(1, Number(searchParams.get("page")) || 1),
+      limit: Math.max(1, Number(searchParams.get("limit")) || 10),
+    };
 
-    const article = await ArticleModel.create(payload);
-    const serialized = serializeArticle(
-      article.toObject() as SerializedArticleSource
+    const { articles, pagination } = await listArticles(query);
+    return successResponse({ articles, pagination });
+  } catch (error: unknown) {
+    console.error("[API Error]", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Internal Server Error" } },
+      { status: 500 }
     );
-
-    revalidateArticleLists(CATEGORY_CONFIG[serialized.category].slug);
-
-    return NextResponse.json({ article: serialized }, { status: 201 });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to create article.";
-    return apiError(message, 500);
   }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/articles
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a new article.
+ *
+ * Validates input, transforms ArticleForm field names to Mongoose names,
+ * generates a unique slug, and persists the document.
+ * Returns the created article with all fields populated.
+ */
+export async function POST(request: NextRequest) {
+  // Rate limit: 30 requests/minute/IP
+  const rateLimitResult = await checkRateLimit(request, "admin:write");
+  if (rateLimitResult) {
+    return rateLimitResult;
+  }
+
+  await requireAdmin();
+  return handleService(async () => {
+    const body = await request.json();
+    const data = validate(articleCreateSchema, body);
+
+    // Transform ArticleForm field names → Mongoose field names.
+    const transformed = {
+      title: data.title,
+      slug: data.slug ?? "",
+      summary: data.summary,
+      content: data.content,
+      author: data.authorId,
+      category: data.categoryId,
+      featuredImage: data.featuredImageId || undefined,
+      tags: data.tags,
+      status: data.status,
+      isBreaking: data.isBreaking,
+      isFeatured: data.isFeatured,
+      seoTitle: data.seoTitle || undefined,
+      seoDescription: data.seoDescription || undefined,
+      canonicalUrl: data.canonicalUrl || undefined,
+      publishedAt: data.publishedAt ? new Date(data.publishedAt) : undefined,
+    };
+
+    const article = await createArticle(transformed);
+    return successResponse(article, 201);
+  });
 }
