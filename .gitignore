@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# tool / IDE configuration (machine-specific)
+.qwen/
+.vscode/
+
+# ephemeral agent data
+subagents/

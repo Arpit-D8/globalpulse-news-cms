@@ -1,0 +1,7 @@
+# Project Journal
+
+## Entries
+
+### Date
+
+-
