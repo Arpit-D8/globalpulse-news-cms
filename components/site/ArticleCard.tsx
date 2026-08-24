@@ -2,20 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { CATEGORY_CONFIG } from "@/lib/constants";
 import type { Article } from "@/lib/types";
+import { formatSiteDateShort } from "@/lib/utils/date";
 
 type ArticleCardProps = {
   article: Article;
   priority?: boolean;
   variant?: "default" | "compact" | "hero";
 };
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(value));
-}
 
 export function getArticleImage(article: Pick<Article, "category" | "image">) {
   return article.image || CATEGORY_CONFIG[article.category].image;
@@ -45,10 +38,9 @@ export function ArticleCard({
         >
           <Image
             src={image}
-            alt=""
+            alt={article.title}
             fill
             priority={priority}
-            unoptimized
             sizes={isHero ? "(min-width: 768px) 58vw, 100vw" : "(min-width: 1024px) 33vw, 100vw"}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
@@ -65,7 +57,7 @@ export function ArticleCard({
           </Link>
           <span className="text-neutral-400">/</span>
           <time className="text-neutral-500" dateTime={article.publishedAt}>
-            {formatDate(article.publishedAt)}
+            {formatSiteDateShort(article.publishedAt)}
           </time>
         </div>
 
@@ -92,6 +84,20 @@ export function ArticleCard({
         <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
           By {article.author}
         </p>
+
+        {article.tags && article.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {article.tags.map((tag) => (
+              <Link
+                key={tag._id}
+                href={`/tags/${tag.slug}`}
+                className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-red-700 hover:text-white"
+              >
+                {tag.name}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </article>
   );

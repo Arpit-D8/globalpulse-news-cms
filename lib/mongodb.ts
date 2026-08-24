@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
 
+// Ensure all Mongoose models are registered before any query runs.
+// This prevents MissingSchemaError when .populate() resolves references.
+import "@/models/Article";
+import "@/models/Author";
+import "@/models/Category";
+import "@/models/Media";
+import "@/models/Tag";
+
 const MONGODB_URI = process.env.MONGODB_URI ?? "";
 
 if (!MONGODB_URI) {

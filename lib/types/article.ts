@@ -1,4 +1,5 @@
 import { CATEGORIES } from "@/lib/constants";
+import type { ArticleTag } from "@/lib/types";
 
 /**
  * Category values accepted by the Article schema.
@@ -17,6 +18,7 @@ export type ArticleStatus = "draft" | "published" | "archived";
  *
  * References (author, category, featuredImage) are stored as ObjectId strings
  * in MongoDB but are serialised as plain strings in the DTO.
+ * Tags are exposed as minimal DTOs ({ _id, name, slug }) when populated.
  */
 export type Article = {
   _id: string;
@@ -27,7 +29,7 @@ export type Article = {
   category: string; // Category _id (ObjectId string)
   author: string; // Author _id (ObjectId string)
   featuredImage: string; // Media _id (ObjectId string)
-  tags: string[];
+  tags: ArticleTag[];
   status: ArticleStatus;
   isBreaking: boolean;
   isFeatured: boolean;

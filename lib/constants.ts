@@ -47,6 +47,11 @@ export const CATEGORY_CONFIG = {
 export const FALLBACK_HERO_IMAGE =
   "https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1600&q=80";
 
+export const SITE_NAME = "VIDARBHA PRINT News";
+export const SITE_DESCRIPTION =
+  "VIDARBHA PRINT delivers breaking news, top stories, and in-depth analysis across India, World, Business, Technology, and Sports.";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
 export function getCategoryFromSlug(slug: string) {
   return CATEGORIES.find((category) => CATEGORY_CONFIG[category].slug === slug);
 }

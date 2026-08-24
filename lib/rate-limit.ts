@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
-import { getRateLimiter, type RateLimitConfig, type RateLimitResult } from "@/lib/rate-limiter";
+import { getRateLimiter, type RateLimitConfig } from "@/lib/rate-limiter";
 
 /**
  * Configuration for an endpoint's rate limit.

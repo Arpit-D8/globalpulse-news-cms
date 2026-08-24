@@ -2,6 +2,14 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
+/** Shape of the admin user object returned by authorize(). */
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
@@ -16,7 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: {},
       },
 
-      async authorize(credentials): Promise<any> {
+      async authorize(credentials): Promise<AdminUser | null> {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }

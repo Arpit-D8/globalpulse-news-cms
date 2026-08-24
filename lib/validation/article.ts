@@ -54,7 +54,7 @@ export const articleCreateSchema = z
       .array(
         z
           .string()
-          .max(50, "Tag must be at most 50 characters")
+          .regex(/^[a-fA-F0-9]{24}$/, "Invalid tag ID")
       )
       .optional()
       .default([]),
@@ -130,7 +130,7 @@ export const articleUpdateSchema = z
       .array(
         z
           .string()
-          .max(50, "Tag must be at most 50 characters")
+          .regex(/^[a-fA-F0-9]{24}$/, "Invalid tag ID")
       )
       .optional(),
     status: ARTICLE_STATUSES.optional(),

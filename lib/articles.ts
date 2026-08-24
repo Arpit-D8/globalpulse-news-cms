@@ -1,15 +1,19 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import ArticleModel from "@/models/Article";
+import TagModel from "@/models/Tag";
+import CategoryModel from "@/models/Category";
 import { CATEGORIES } from "@/lib/constants";
 import { connectDB } from "@/lib/mongodb";
+import { slugify } from "@/lib/utils/slug";
 import type {
   Article,
   ArticleMutationInput,
   ArticleStatus,
+  ArticleTag,
   Category,
 } from "@/lib/types";
 
-type ObjectIdLike = {
+export type ObjectIdLike = {
   toString(): string;
 };
 
@@ -19,9 +23,10 @@ type ArticleRecord = {
   slug: string;
   summary: string;
   content: string;
-  category: Category;
-  image?: string | null;
-  author?: string | null;
+  category: { _id: ObjectIdLike; name: Category; slug: string };
+  featuredImage?: { _id: ObjectIdLike; url: string } | null;
+  author?: { _id: ObjectIdLike; name: string } | null;
+  tags?: (string | { _id: ObjectIdLike; name: string; slug: string })[];
   isBreaking?: boolean | null;
   isFeatured?: boolean | null;
   status?: ArticleStatus | null;
@@ -72,32 +77,95 @@ function excerptFromContent(content: string) {
 export function serializeArticle(article: ArticleRecord): Article {
   const createdAt = toIsoDate(article.createdAt);
 
+  // Extract tag DTOs from potentially populated ObjectId references.
+  const rawTags = article.tags ?? [];
+  const tags: ArticleTag[] = rawTags.map((tag) => {
+    // Unpopulated: bare ObjectId string.
+    if (typeof tag === "string") {
+      return { _id: tag, name: "", slug: "" };
+    }
+    // Populated Tag document: { _id: ObjectIdLike, name: string, slug: string }
+    const objTag = tag as { _id?: ObjectIdLike; name?: string; slug?: string };
+    const id =
+      objTag._id && typeof (objTag._id as ObjectIdLike).toString === "function"
+        ? (objTag._id as ObjectIdLike).toString()
+        : "";
+    return {
+      _id: id,
+      name: objTag.name ?? "",
+      slug: objTag.slug ?? "",
+    };
+  });
+
   return {
     _id: article._id.toString(),
     title: article.title,
     slug: article.slug,
     summary: article.summary,
     content: article.content,
-    category: article.category,
-    image: article.image ?? "",
-    author: article.author ?? "GlobalPulse Desk",
+    category: article.category?.name ?? "India",
+    image: article.featuredImage?.url ?? "",
+    author: article.author?.name ?? "VIDARBHA PRINT Desk",
+    tags,
     isBreaking: Boolean(article.isBreaking),
     isFeatured: Boolean(article.isFeatured),
-    status: article.status ?? "published",
-    publishedAt: toIsoDate(article.publishedAt, createdAt),
+    status: article.status ?? "draft",
+    publishedAt: article.publishedAt ? toIsoDate(article.publishedAt) : "",
     createdAt,
     updatedAt: toIsoDate(article.updatedAt, createdAt),
   };
 }
 
-export function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/['"]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 90);
+/**
+ * Atomically reserve a slug using findOneAndUpdate with upsert.
+ *
+ * Prevents race conditions where concurrent requests both pass the exists()
+ * check before either inserts.
+ */
+async function reserveSlugAtomically(
+  baseSlug: string,
+  ignoreId?: string
+): Promise<string | null> {
+  const query: Record<string, unknown> = { slug: baseSlug };
+
+  if (ignoreId && isValidObjectId(ignoreId)) {
+    query._id = { $ne: new mongoose.Types.ObjectId(ignoreId) };
+  }
+
+  const result = await ArticleModel.findOneAndUpdate(
+    query,
+    { $setOnInsert: { slug: baseSlug } },
+    { upsert: true, returnDocument: "after" }
+  );
+
+  if (result) {
+    return baseSlug;
+  }
+
+  // Slug already existed — try with suffixes.
+  let suffix = 1;
+  while (suffix <= 100) {
+    const candidate = `${baseSlug}-${suffix}`;
+    const suffixQuery: Record<string, unknown> = { slug: candidate };
+
+    if (ignoreId && isValidObjectId(ignoreId)) {
+      suffixQuery._id = { $ne: new mongoose.Types.ObjectId(ignoreId) };
+    }
+
+    const reserved = await ArticleModel.findOneAndUpdate(
+      suffixQuery,
+      { $setOnInsert: { slug: candidate } },
+      { upsert: true, returnDocument: "after" }
+    );
+
+    if (reserved) {
+      return candidate;
+    }
+
+    suffix++;
+  }
+
+  return null;
 }
 
 export async function getUniqueSlug(
@@ -108,11 +176,17 @@ export async function getUniqueSlug(
   await connectDB();
 
   const baseSlug = slugify(requestedSlug || title) || `article-${Date.now()}`;
-  let slug = baseSlug;
-  let counter = 2;
 
-  while (true) {
-    const query: Record<string, unknown> = { slug };
+  const reserved = await reserveSlugAtomically(baseSlug, ignoreId);
+  if (reserved) {
+    return reserved;
+  }
+
+  // Fallback: should rarely happen.
+  let suffix = 101;
+  while (suffix <= 10000) {
+    const candidate = `${baseSlug}-${suffix}`;
+    const query: Record<string, unknown> = { slug: candidate };
 
     if (ignoreId && isValidObjectId(ignoreId)) {
       query._id = { $ne: new mongoose.Types.ObjectId(ignoreId) };
@@ -121,12 +195,13 @@ export async function getUniqueSlug(
     const exists = await ArticleModel.exists(query);
 
     if (!exists) {
-      return slug;
+      return candidate;
     }
 
-    slug = `${baseSlug}-${counter}`;
-    counter += 1;
+    suffix++;
   }
+
+  return `${baseSlug}-${Date.now()}`;
 }
 
 export async function buildArticlePayload(
@@ -137,7 +212,7 @@ export async function buildArticlePayload(
   const content = stringValue(input.content) || existing?.content || "";
   const categoryInput = stringValue(input.category) || existing?.category || "";
   const category = CATEGORIES.find((item) => item === categoryInput);
-  const statusInput = stringValue(input.status) || existing?.status || "published";
+  const statusInput = stringValue(input.status) || existing?.status || "draft";
   const status: ArticleStatus = statusInput === "draft" ? "draft" : "published";
   const summary =
     stringValue(input.summary) || existing?.summary || excerptFromContent(content);
@@ -176,7 +251,7 @@ export async function buildArticlePayload(
       content,
       category,
       image: stringValue(input.image) || existing?.image || "",
-      author: stringValue(input.author) || existing?.author || "GlobalPulse Desk",
+      author: stringValue(input.author) || existing?.author || "VIDARBHA PRINT Desk",
       isBreaking: booleanValue(input.isBreaking),
       isFeatured: booleanValue(input.isFeatured),
       status,
@@ -186,16 +261,41 @@ export async function buildArticlePayload(
 }
 
 export async function getPublishedArticles(options?: {
-  category?: Category;
+  category?: Category | string;
   excludeSlug?: string;
   limit?: number;
+  tag?: string;
 }) {
   await connectDB();
 
   const query: Record<string, unknown> = { status: "published" };
 
   if (options?.category) {
-    query.category = options.category;
+    const categoryValue = options.category;
+    if (isValidObjectId(categoryValue)) {
+      // Query by ObjectId reference
+      query.category = new mongoose.Types.ObjectId(categoryValue);
+    } else {
+      // Resolve category name to ObjectId via Category collection
+      const catDoc = await CategoryModel.findOne({ name: categoryValue });
+      if (catDoc) {
+        query.category = catDoc._id;
+      } else {
+        // Category not found — skip filter so we return all published articles
+        delete query.category;
+      }
+    }
+  }
+
+  if (options?.tag) {
+    // Resolve tag slug to Tag._id (active only), then query by ObjectId reference.
+    const tagDoc = await TagModel.findOne({ slug: options.tag, isActive: true });
+    if (tagDoc) {
+      query.tags = { $in: [tagDoc._id] };
+    } else {
+      // Tag not found or inactive — return empty array (no articles for this tag)
+      return [];
+    }
   }
 
   if (options?.excludeSlug) {
@@ -205,6 +305,46 @@ export async function getPublishedArticles(options?: {
   const articles = await ArticleModel.find(query)
     .sort({ publishedAt: -1, createdAt: -1 })
     .limit(options?.limit ?? 50)
+    .populate("featuredImage")
+    .populate("category")
+    .populate("author")
+    .populate("tags")
+    .lean<ArticleRecord[]>();
+
+  return articles.map(serializeArticle);
+}
+
+export async function getArticlesByTag(
+  tag: string,
+  options?: {
+    excludeSlug?: string;
+    limit?: number;
+  }
+) {
+  await connectDB();
+
+  const query: Record<string, unknown> = { status: "published" };
+
+  // Resolve tag slug to Tag._id (active only), then query by ObjectId reference.
+  const tagDoc = await TagModel.findOne({ slug: tag, isActive: true });
+  if (tagDoc) {
+    query.tags = { $in: [tagDoc._id] };
+  } else {
+    // Tag not found or inactive — return empty array (no articles for this tag)
+    return [];
+  }
+
+  if (options?.excludeSlug) {
+    query.slug = { $ne: options.excludeSlug };
+  }
+
+  const articles = await ArticleModel.find(query)
+    .sort({ publishedAt: -1, createdAt: -1 })
+    .limit(options?.limit ?? 40)
+    .populate('featuredImage')
+    .populate('category')
+    .populate('author')
+    .populate('tags')
     .lean<ArticleRecord[]>();
 
   return articles.map(serializeArticle);
@@ -213,9 +353,12 @@ export async function getPublishedArticles(options?: {
 export async function getArticleBySlug(slug: string) {
   await connectDB();
 
-  const article = await ArticleModel.findOne({ slug, status: "published" }).lean<
-    ArticleRecord | null
-  >();
+  const article = await ArticleModel.findOne({ slug, status: "published" })
+    .populate('featuredImage')
+    .populate('category')
+    .populate('author')
+    .populate('tags')
+    .lean<ArticleRecord | null>();
 
   return article ? serializeArticle(article) : null;
 }
@@ -227,7 +370,10 @@ export async function getArticleById(id: string) {
 
   await connectDB();
 
-  const article = await ArticleModel.findById(id).lean<ArticleRecord | null>();
+  const article = await ArticleModel.findById(id)
+    .populate('featuredImage')
+    .populate('category')
+    .lean<ArticleRecord | null>();
 
   return article ? serializeArticle(article) : null;
 }
@@ -238,6 +384,8 @@ export async function getAdminArticles() {
   const articles = await ArticleModel.find({})
     .sort({ updatedAt: -1, createdAt: -1 })
     .limit(100)
+    .populate('featuredImage')
+    .populate('category')
     .lean<ArticleRecord[]>();
 
   return articles.map(serializeArticle);
@@ -246,15 +394,18 @@ export async function getAdminArticles() {
 export async function getHomepageArticles() {
   const articles = await getPublishedArticles({ limit: 80 });
   const hero = articles.find((article) => article.isFeatured) ?? articles[0] ?? null;
+  const excludeId = hero?._id;
   const latest = articles
-    .filter((article) => article._id !== hero?._id)
+    .filter((article) => article._id !== excludeId)
     .slice(0, 12);
-  const breaking = articles.filter((article) => article.isBreaking).slice(0, 8);
+  const breaking = articles
+    .filter((article) => article.isBreaking && article._id !== excludeId)
+    .slice(0, 8);
   const byCategory = CATEGORIES.reduce(
     (sections, category) => ({
       ...sections,
       [category]: articles
-        .filter((article) => article.category === category)
+        .filter((article) => article.category === category && article._id !== excludeId)
         .slice(0, 4),
     }),
     {} as Record<Category, Article[]>

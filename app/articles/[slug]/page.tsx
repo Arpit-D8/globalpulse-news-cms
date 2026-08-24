@@ -12,18 +12,16 @@ import {
   getPublishedArticles,
 } from "@/lib/articles";
 import { CATEGORY_CONFIG } from "@/lib/constants";
+import { formatSiteDateFull } from "@/lib/utils/date";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Route parameters for the article detail page.
+ */
 type ArticlePageProps = {
   params: Promise<{ slug: string }>;
 };
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "full",
-  }).format(new Date(value));
-}
 
 export async function generateMetadata({
   params,
@@ -101,9 +99,24 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-neutral-200 py-4 text-sm font-semibold text-neutral-600">
               <span>By {article.author}</span>
               <time dateTime={article.publishedAt}>
-                {formatDate(article.publishedAt)}
+                {formatSiteDateFull(article.publishedAt)}
               </time>
             </div>
+
+            {article.tags && article.tags.length > 0 && (
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-neutral-500">Tags:</span>
+                {article.tags.map((tag) => (
+                  <Link
+                    key={tag._id}
+                    href={`/tags/${tag.slug}`}
+                    className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-red-700 hover:text-white"
+                  >
+                    {tag.name}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -111,10 +124,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           <div className="relative aspect-[16/8] max-h-[620px] min-h-72 w-full overflow-hidden bg-neutral-200">
             <Image
             src={getArticleImage(article)}
-            alt=""
+            alt={article.title}
             fill
             priority
-            unoptimized
             sizes="100vw"
             className="max-h-[620px] w-full object-cover"
           />

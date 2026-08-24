@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import Category from "@/models/Category";
+import { connectDB } from "@/lib/mongodb";
+import { getCategoryFromSlug } from "@/lib/constants";
+import { getPublishedArticles } from "@/lib/articles";
 import { ArticleCard } from "@/components/site/ArticleCard";
 import { BreakingTicker } from "@/components/site/BreakingTicker";
 import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
-import { getCategoryFromSlug } from "@/lib/constants";
-import { getPublishedArticles } from "@/lib/articles";
 
 export const dynamic = "force-dynamic";
 
 type CategoryPageProps = {
   params: Promise<{ category: string }>;
+  searchParams: Promise<{ tag?: string }>;
 };
 
 export async function generateMetadata({
@@ -27,19 +31,26 @@ export async function generateMetadata({
 
   return {
     title: `${category} News`,
-    description: `Latest ${category} headlines, analysis, and breaking news from GlobalPulse News.`,
+    description: `Latest ${category} headlines, analysis, and breaking news from VIDARBHA PRINT News.`,
   };
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { category: slug } = await params;
-  const category = getCategoryFromSlug(slug);
+  const categoryName = getCategoryFromSlug(slug);
 
-  if (!category) {
+  if (!categoryName) {
     notFound();
   }
 
-  const articles = await getPublishedArticles({ category, limit: 40 });
+  // Look up Category by slug to get ObjectId
+  await connectDB();
+  const categoryDoc = await Category.findOne({ slug }).lean();
+
+  // Fallback: if category not found in DB, use category name string for query
+  const categoryFilter = categoryDoc?._id.toString() ?? categoryName;
+
+  const articles = await getPublishedArticles({ category: categoryFilter, limit: 40 });
   const breaking = await getPublishedArticles({ limit: 8 });
   const lead = articles[0];
   const rest = articles.slice(1);
@@ -52,10 +63,10 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       <section className="border-b border-neutral-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-10">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
-            GlobalPulse section
+            VIDARBHA PRINT section
           </p>
           <h1 className="mt-2 border-t-4 border-neutral-950 pt-4 text-5xl font-black tracking-normal text-neutral-950 md:text-7xl">
-            {category}
+            {categoryName}
           </h1>
         </div>
       </section>
@@ -75,7 +86,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
         ) : (
           <div className="border border-dashed border-neutral-300 bg-white p-8 text-center">
             <p className="text-lg font-bold text-neutral-800">
-              No {category} articles have been published yet.
+              No {categoryName} articles have been published yet.
             </p>
           </div>
         )}

@@ -1,28 +1,155 @@
 import Image from "next/image";
 import Link from "next/link";
+import Script from "next/script";
 import type { Metadata } from "next";
-import { FaArrowRight, FaPlus } from "react-icons/fa6";
+import { FaPlus } from "react-icons/fa6";
 import { ArticleCard } from "@/components/site/ArticleCard";
 import { BreakingTicker } from "@/components/site/BreakingTicker";
+import { CategorySections } from "@/components/site/CategorySections";
 import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
-import { CATEGORY_CONFIG, CATEGORIES, FALLBACK_HERO_IMAGE } from "@/lib/constants";
-import { getHomepageArticles } from "@/lib/articles";
+import { LatestStories } from "@/components/site/LatestStories";
+import { TopUpdates } from "@/components/site/TopUpdates";
+import { CATEGORY_CONFIG, CATEGORIES, FALLBACK_HERO_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants";
+import { getHomepageArticles, getPublishedArticles } from "@/lib/articles";
+import { allSettledWithFallback } from "@/lib/failure-isolation";
+import type { ArticlesByCategory } from "@/components/site/CategorySections";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Breaking News, Latest Headlines and Analysis",
-  description:
-    "Read the latest headlines across India, World, Business, Technology, and Sports on GlobalPulse News.",
+  title: "Latest Breaking News, Top Stories & Analysis | VIDARBHA PRINT",
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    title: "Latest Breaking News, Top Stories & Analysis | VIDARBHA PRINT",
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    images: [
+      {
+        url: FALLBACK_HERO_IMAGE,
+        width: 1600,
+        height: 900,
+        alt: `${SITE_NAME} — homepage hero image`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Latest Breaking News, Top Stories & Analysis | VIDARBHA PRINT",
+    description: SITE_DESCRIPTION,
+    images: [FALLBACK_HERO_IMAGE],
+  },
 };
 
+const homepageJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
+      publisher: {
+        "@id": `${SITE_URL}/#organization`,
+      },
+    },
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+    {
+      "@type": "WebPage",
+      "@id": `${SITE_URL}/#webpage`,
+      url: SITE_URL,
+      name: "Latest Breaking News, Top Stories & Analysis | VIDARBHA PRINT",
+      isPartOf: {
+        "@id": `${SITE_URL}/#website`,
+      },
+      about: {
+        "@id": `${SITE_URL}/#organization`,
+      },
+      description: SITE_DESCRIPTION,
+      inLanguage: "en-US",
+    },
+  ],
+};
+
+/**
+ * Fetch homepage data with failure isolation.
+ *
+ * Each data source (hero, latest, breaking, categories) runs concurrently.
+ * If one fails, the others still render — the page degrades gracefully.
+ */
+async function getHomepageData() {
+  const results = await allSettledWithFallback(
+    {
+      hero: () =>
+        getPublishedArticles({ limit: 1 }).then(
+          (articles) => articles[0] ?? null
+        ),
+      latest: () => getPublishedArticles({ limit: 12 }),
+      breaking: () =>
+        getPublishedArticles({ limit: 8 }).then((articles) =>
+          articles.filter((a) => a.isBreaking)
+        ),
+      byCategory: () => getHomepageArticles().then((d) => d.byCategory),
+    },
+    {
+      fallback: {
+        hero: null,
+        latest: [],
+        breaking: [],
+        byCategory: CATEGORIES.reduce(
+          (sections, category) => ({
+            ...sections,
+            [category]: [],
+          }),
+          {} as Record<string, any[]>
+        ),
+      },
+    }
+  );
+
+  // Extract values from settled results (already unwrapped by allSettledWithFallback).
+  const hero = (results.hero ?? null) as any;
+  const latest = (results.latest ?? []) as any[];
+  const breaking = (results.breaking ?? []) as any[];
+  const byCategory = (results.byCategory ?? {}) as Record<string, any[]>;
+
+  // Fallback: if hero failed, use first latest article
+  const effectiveHero = hero ?? (latest.length > 0 ? latest[0] : null);
+  const effectiveLatest = effectiveHero
+    ? latest.filter((a) => a._id !== effectiveHero?._id).slice(0, 12)
+    : latest.slice(0, 12);
+  const effectiveBreaking = breaking.filter((a) => a._id !== effectiveHero?._id);
+
+  return {
+    hero: effectiveHero,
+    latest: effectiveLatest,
+    breaking: effectiveBreaking,
+    byCategory,
+  };
+}
+
 export default async function Home() {
-  const { hero, latest, breaking, byCategory } = await getHomepageArticles();
+  const { hero, latest, breaking, byCategory } = await getHomepageData();
   const topUpdates = latest.slice(0, 5);
 
   return (
     <main>
+      <Script
+        id="homepage-jsonld"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homepageJsonLd) }}
+      />
       <Header />
       <BreakingTicker articles={breaking} />
 
@@ -39,7 +166,6 @@ export default async function Home() {
                     alt=""
                     fill
                     priority
-                    unoptimized
                     sizes="(min-width: 768px) 58vw, 100vw"
                     className="h-full w-full object-cover"
                   />
@@ -67,107 +193,12 @@ export default async function Home() {
             )}
           </div>
 
-          <aside className="border-t-4 border-neutral-950 bg-neutral-50 p-5">
-            <div className="flex items-center justify-between border-b border-neutral-300 pb-3">
-              <h2 className="text-xl font-black uppercase tracking-normal">
-                Top Updates
-              </h2>
-              <span className="text-xs font-bold uppercase text-red-700">Live</span>
-            </div>
-
-            <div className="divide-y divide-neutral-200">
-              {topUpdates.length > 0 ? (
-                topUpdates.map((article) => (
-                  <ArticleCard key={article._id} article={article} variant="compact" />
-                ))
-              ) : (
-                <p className="py-5 text-sm leading-6 text-neutral-600">
-                  Latest updates will appear here after articles are published.
-                </p>
-              )}
-            </div>
-          </aside>
+          <TopUpdates articles={topUpdates} />
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10">
-        <div className="mb-5 flex items-end justify-between gap-4 border-b-4 border-neutral-950 pb-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
-              Editors&apos; desk
-            </p>
-            <h2 className="text-3xl font-black tracking-normal text-neutral-950">
-              Latest Stories
-            </h2>
-          </div>
-          <Link
-            href="/admin/articles/new"
-            className="hidden items-center gap-2 text-sm font-black uppercase text-red-700 hover:underline sm:inline-flex"
-          >
-            <FaPlus aria-hidden="true" />
-            Add Story
-          </Link>
-        </div>
-
-        {latest.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {latest.slice(0, 6).map((article) => (
-              <ArticleCard key={article._id} article={article} />
-            ))}
-          </div>
-        ) : (
-          <div className="border border-dashed border-neutral-300 bg-white p-8 text-center">
-            <p className="text-lg font-bold text-neutral-800">
-              No published articles yet.
-            </p>
-            <Link
-              href="/admin/articles/new"
-              className="mt-4 inline-flex items-center gap-2 bg-neutral-950 px-5 py-3 text-sm font-black uppercase text-white transition hover:bg-red-700"
-            >
-              <FaPlus aria-hidden="true" />
-              Create Article
-            </Link>
-          </div>
-        )}
-      </section>
-
-      <section className="bg-white py-10">
-        <div className="mx-auto max-w-7xl px-4">
-          <div className="grid gap-8 lg:grid-cols-5">
-            {CATEGORIES.map((category) => (
-              <div key={category} className="border-t-4 border-neutral-950 pt-4">
-                <div className="min-h-28">
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-red-700">
-                    {CATEGORY_CONFIG[category].kicker}
-                  </p>
-                  <Link
-                    href={`/category/${CATEGORY_CONFIG[category].slug}`}
-                    className="mt-1 inline-flex items-center gap-2 text-2xl font-black tracking-normal text-neutral-950 hover:text-red-700"
-                  >
-                    {category}
-                    <FaArrowRight aria-hidden="true" className="text-sm" />
-                  </Link>
-                </div>
-                <div className="divide-y divide-neutral-200">
-                  {byCategory[category].length > 0 ? (
-                    byCategory[category].slice(0, 3).map((article) => (
-                      <ArticleCard
-                        key={article._id}
-                        article={article}
-                        variant="compact"
-                      />
-                    ))
-                  ) : (
-                    <p className="py-4 text-sm leading-6 text-neutral-600">
-                      Coverage appears here after publishing.
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <LatestStories articles={latest} />
+      <CategorySections articles={byCategory as ArticlesByCategory} />
 
       <Footer />
     </main>

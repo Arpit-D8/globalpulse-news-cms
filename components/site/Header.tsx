@@ -1,16 +1,35 @@
 import Link from "next/link";
-import { FaRegNewspaper, FaUserShield } from "react-icons/fa6";
-import { CATEGORIES, CATEGORY_CONFIG } from "@/lib/constants";
+import { FaRegNewspaper, FaUserShield, FaSearchengin } from "react-icons/fa6";
+import { CategoryNav } from "./CategoryNav";
 
 export function Header() {
   return (
     <header className="border-b border-neutral-200 bg-white">
-      <div className="bg-neutral-950 text-xs font-medium text-white">
+      <div className="border-b border-neutral-100">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2">
-          <span>Live newsroom updates</span>
+          <span className="text-xs font-medium text-neutral-500">Live newsroom updates</span>
+
+          <form action="/search" method="GET" className="flex items-center gap-3">
+            <div className="relative">
+              <input
+                type="search"
+                name="q"
+                placeholder="Search news..."
+                className="w-48 rounded-full border border-neutral-200 bg-neutral-50 py-1.5 pr-9 pl-4 text-xs font-semibold text-neutral-800 outline-none transition focus:border-red-700 focus:bg-white focus:ring-2 focus:ring-red-100 md:w-64"
+              />
+              <button
+                type="submit"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 transition hover:text-red-700"
+                aria-label="Search"
+              >
+                <FaSearchengin aria-hidden="true" className="text-xs" />
+              </button>
+            </div>
+          </form>
+
           <Link
             href="/admin"
-            className="inline-flex items-center gap-2 text-neutral-200 transition hover:text-white"
+            className="inline-flex items-center gap-2 text-xs font-medium text-neutral-500 transition hover:text-red-700"
           >
             <FaUserShield aria-hidden="true" />
             Admin
@@ -25,7 +44,7 @@ export function Header() {
           </span>
           <span>
             <span className="block text-3xl font-black uppercase leading-none tracking-normal text-neutral-950 md:text-4xl">
-              GlobalPulse
+              VIDARBHA PRINT
             </span>
             <span className="block text-sm font-semibold uppercase tracking-[0.18em] text-red-700">
               News Network
@@ -33,17 +52,7 @@ export function Header() {
           </span>
         </Link>
 
-        <nav aria-label="Primary navigation" className="flex flex-wrap gap-2">
-          {CATEGORIES.map((category) => (
-            <Link
-              key={category}
-              href={`/category/${CATEGORY_CONFIG[category].slug}`}
-              className="border border-neutral-300 px-3 py-2 text-sm font-bold uppercase text-neutral-800 transition hover:border-red-700 hover:bg-red-700 hover:text-white"
-            >
-              {category}
-            </Link>
-          ))}
-        </nav>
+        <CategoryNav />
       </div>
     </header>
   );

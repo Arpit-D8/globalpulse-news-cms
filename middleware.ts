@@ -86,11 +86,12 @@ export function middleware(request: NextRequest) {
       "'unsafe-inline'",
     ],
 
-    // Images: same-origin + data URIs + Cloudinary
+    // Images: same-origin + data URIs + Cloudinary + Unsplash
     "img-src": [
       "'self'",
       "data:",
       ...CLOUDINARY_IMG_SRC,
+      "https://images.unsplash.com",
     ],
 
     // Fonts: same-origin only (no external font libraries in this project)
