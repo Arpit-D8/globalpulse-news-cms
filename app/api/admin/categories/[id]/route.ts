@@ -46,6 +46,7 @@ export async function PUT(
   }
 
   return handleService(async () => {
+    await requireAdmin();
     const { id } = await params;
     const body = await request.json();
     const data = validate(categoryUpdateSchema, body);
