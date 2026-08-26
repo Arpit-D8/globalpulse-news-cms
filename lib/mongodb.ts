@@ -1,3 +1,8 @@
+// Import env.ts to trigger startup validation of MONGODB_URI (and all other
+// required environment variables).  The validated value is consumed via
+// getMongodbUri() below.
+import { getMongodbUri } from "@/lib/env";
+
 import mongoose from "mongoose";
 
 // Ensure all Mongoose models are registered before any query runs.
@@ -7,12 +12,6 @@ import "@/models/Author";
 import "@/models/Category";
 import "@/models/Media";
 import "@/models/Tag";
-
-const MONGODB_URI = process.env.MONGODB_URI ?? "";
-
-if (!MONGODB_URI) {
-  throw new Error("MONGODB_URI missing");
-}
 
 type MongooseCache = {
   conn: typeof mongoose | null;
@@ -37,7 +36,7 @@ export async function connectDB() {
     return cached.conn;
   }
 
-  cached.promise ??= mongoose.connect(MONGODB_URI, {
+  cached.promise ??= mongoose.connect(getMongodbUri(), {
     bufferCommands: false,
   });
 

@@ -2,6 +2,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
+// Import env.ts to trigger startup validation of NEXTAUTH_SECRET, ADMIN_EMAIL,
+// and ADMIN_PASSWORD (and all other required environment variables).
+import { getNextauthSecret, getAdminCredentials } from "@/lib/env";
+
 /** Shape of the admin user object returned by authorize(). */
 type AdminUser = {
   id: string;
@@ -29,8 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const adminEmail = process.env.ADMIN_EMAIL!;
-        const adminPassword = process.env.ADMIN_PASSWORD!;
+        const { email: adminEmail, password: adminPassword } = getAdminCredentials();
         const email = credentials.email as string;
         const password = credentials.password as string;
 
@@ -89,5 +92,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: getNextauthSecret(),
 });
