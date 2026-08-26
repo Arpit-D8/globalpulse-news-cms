@@ -47,7 +47,7 @@ function isProduction(): boolean {
 // Core — Apply security headers
 // ---------------------------------------------------------------------------
 
-export function middleware(request: NextRequest) {
+export const proxy = (request: NextRequest) => {
   const response = NextResponse.next();
 
   const { pathname } = request.nextUrl;

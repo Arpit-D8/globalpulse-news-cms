@@ -20,7 +20,7 @@
 //   - NEWS_API_KEY    — external news import
 //   - NEXT_PUBLIC_SITE_URL — SEO metadata (defaults to http://localhost:3000)
 //
-// Import this module early (e.g. in middleware.ts or a top-level layout) to
+// Import this module early (e.g. in proxy.ts or a top-level layout) to
 // ensure all required variables are present before any other module loads.
 // ===========================================================================
 
