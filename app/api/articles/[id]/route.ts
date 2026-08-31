@@ -12,11 +12,15 @@ import type { ArticleUpdateServiceInput } from "@/lib/types/article";
 
 /**
  * Get a single article by ID.
+ *
+ * Admin-only endpoint — unauthenticated users cannot access draft or
+ * unpublished articles by guessing article IDs.
  */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  await requireAdmin();
   return handleService(async () => {
     const { id } = await params;
     const article = await getArticleById(id);

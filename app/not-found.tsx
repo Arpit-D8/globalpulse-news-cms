@@ -1,7 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { FaHouse } from "react-icons/fa6";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
+
+export const generateMetadata = (): Metadata => {
+  // Temporary SEO mitigation for Next.js 16.3.3 bug where notFound()
+  // renders the page but returns HTTP 200 instead of 404.
+  // This prevents search engines from indexing invalid slugs.
+  return {
+    robots: "noindex, follow",
+  };
+};
 
 export default function NotFound() {
   return (

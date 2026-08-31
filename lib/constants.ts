@@ -50,7 +50,9 @@ export const FALLBACK_HERO_IMAGE =
 export const SITE_NAME = "VIDARBHA PRINT News";
 export const SITE_DESCRIPTION =
   "VIDARBHA PRINT delivers breaking news, top stories, and in-depth analysis across India, World, Business, Technology, and Sports.";
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+export const SITE_URL = "NEXT_PUBLIC_SITE_URL" in process.env
+  ? process.env.NEXT_PUBLIC_SITE_URL
+  : "http://localhost:3000";
 
 export function getCategoryFromSlug(slug: string) {
   return CATEGORIES.find((category) => CATEGORY_CONFIG[category].slug === slug);

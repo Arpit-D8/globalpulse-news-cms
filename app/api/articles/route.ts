@@ -13,10 +13,13 @@ import { articleCreateSchema } from "@/lib/validation/article";
 /**
  * List articles with search, filter, sort, and pagination.
  *
+ * Public endpoint ALWAYS returns only published articles.
+ * The `status` query param is ignored for security — drafts are never
+ * exposed to unauthenticated users.
+ *
  * Query params:
  *   - search   : substring match on headline (case-insensitive)
  *   - category : exact category match
- *   - status   : "published" | "draft"
  *   - sort     : "newest" | "oldest"
  *   - page     : page number (default 1)
  *   - limit    : items per page (default 10)
@@ -28,7 +31,9 @@ export async function GET(request: Request) {
     const query = {
       search: searchParams.get("search") || "",
       category: searchParams.get("category") || "",
-      status: searchParams.get("status") || "",
+      // Public endpoint: only ever return published articles.
+      // Drafts/quarantined articles are never exposed to unauthenticated users.
+      status: "published",
       sort: (searchParams.get("sort") || "newest") as "newest" | "oldest",
       page: Math.max(1, Number(searchParams.get("page")) || 1),
       limit: Math.max(1, Number(searchParams.get("limit")) || 10),

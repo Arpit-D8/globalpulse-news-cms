@@ -36,6 +36,7 @@ const REQUIRED_VARS: Record<string, string> = {
   CLOUDINARY_CLOUD_NAME: "Cloudinary cloud name for media upload",
   CLOUDINARY_API_KEY: "Cloudinary API key for media upload",
   CLOUDINARY_API_SECRET: "Cloudinary API secret for media upload",
+  AUTH_URL: "Base URL for NextAuth v5 (e.g. http://localhost:3000 or https://your-domain.com). Required for host validation in production.",
 };
 
 const missing: string[] = [];
@@ -73,6 +74,16 @@ export function getMongodbUri(): string {
  */
 export function getNextauthSecret(): string {
   return process.env.NEXTAUTH_SECRET!;
+}
+
+/**
+ * Returns the validated AUTH_URL (NextAuth v5 base URL).
+ *
+ * Use this instead of reading process.env.AUTH_URL directly.
+ * This is the variable @auth/core checks to auto-enable trustHost.
+ */
+export function getAuthUrl(): string {
+  return process.env.AUTH_URL!;
 }
 
 /**

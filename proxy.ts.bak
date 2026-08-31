@@ -48,8 +48,6 @@ function isProduction(): boolean {
 // ---------------------------------------------------------------------------
 
 export const proxy = (request: NextRequest) => {
-  const response = NextResponse.next();
-
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static assets and Next.js internal routes
@@ -59,8 +57,13 @@ export const proxy = (request: NextRequest) => {
     pathname.startsWith("/api/") ||
     pathname.match(/\.(ico|svg|png|jpg|jpeg|gif|webp|woff2?)$/i)
   ) {
-    return response;
+    return NextResponse.next();
   }
+
+  // Rewrite to self to preserve page component status codes (including 404).
+  // NextResponse.next() creates a new response with status 200 which overrides
+  // the page's notFound() status. NextResponse.rewrite() preserves the original.
+  const response = NextResponse.rewrite(request.url);
 
   const production = isProduction();
 
@@ -74,10 +77,12 @@ export const proxy = (request: NextRequest) => {
 
     // Scripts: same-origin + Cloudinary (for image scripts) + unsafe-inline
     // (Next.js app router injects inline scripts; Tailwind v4 may use inline styles)
+    // In development, also allow unsafe-eval for React/Next.js debugging features.
     "script-src": [
       "'self'",
       "'unsafe-inline'",
       ...CLOUDINARY_HOSTS,
+      ...(production ? [] : ["'unsafe-eval'"]),
     ],
 
     // Styles: same-origin + unsafe-inline (Tailwind v4 requires it)
@@ -190,7 +195,7 @@ export const proxy = (request: NextRequest) => {
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
 
   return response;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Matcher — Run on all page routes, skip API/static/Next.js internals

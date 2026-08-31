@@ -177,7 +177,7 @@ function toPublicArticle(doc: ArticleDocument): PublicArticle {
     if (typeof authorDoc.name === "string") {
       // Populated — extract name and photoUrl.
       authorInfo = {
-        _id: doc.author.toString(),
+        _id: toStr(doc.author._id),
         name: authorDoc.name,
         photoUrl: authorDoc.photoUrl || undefined,
       };

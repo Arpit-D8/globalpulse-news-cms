@@ -47,7 +47,9 @@ export class NewsAPIProvider implements NewsProvider {
 
       category: "India",
 
-      publishedAt: new Date(article.publishedAt),
+      publishedAt: article.publishedAt
+        ? new Date(article.publishedAt)
+        : new Date(),
     }));
   }
 }

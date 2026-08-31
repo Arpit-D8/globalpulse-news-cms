@@ -418,3 +418,38 @@ export async function getHomepageArticles() {
     byCategory,
   };
 }
+
+/**
+ * Search published articles by title and summary using case-insensitive regex.
+ */
+export async function searchArticles(
+  query: string,
+  options?: { limit?: number }
+) {
+  if (!query || !query.trim()) {
+    return [];
+  }
+
+  await connectDB();
+
+  // Escape regex special characters to prevent injection
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(escapedQuery, "i");
+
+  const articles = await ArticleModel.find({
+    status: "published",
+    $or: [
+      { title: { $regex: regex } },
+      { summary: { $regex: regex } },
+    ],
+  })
+    .sort({ publishedAt: -1, createdAt: -1 })
+    .limit(options?.limit ?? 40)
+    .populate("featuredImage")
+    .populate("category")
+    .populate("author")
+    .populate("tags")
+    .lean<ArticleRecord[]>();
+
+  return articles.map(serializeArticle);
+}

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import Category from "@/models/Category";
 import { connectDB } from "@/lib/mongodb";
 import { getCategoryFromSlug } from "@/lib/constants";
@@ -9,8 +8,9 @@ import { ArticleCard } from "@/components/site/ArticleCard";
 import { BreakingTicker } from "@/components/site/BreakingTicker";
 import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
+import { notFound } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type CategoryPageProps = {
   params: Promise<{ category: string }>;
@@ -19,14 +19,12 @@ type CategoryPageProps = {
 
 export async function generateMetadata({
   params,
-}: CategoryPageProps): Promise<Metadata> {
+}: CategoryPageProps): Promise<Metadata | Response> {
   const { category: slug } = await params;
   const category = getCategoryFromSlug(slug);
 
   if (!category) {
-    return {
-      title: "Category not found",
-    };
+    return new Response(null, { status: 404 });
   }
 
   return {

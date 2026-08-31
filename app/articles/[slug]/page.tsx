@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { FaArrowLeft } from "react-icons/fa6";
 import { ArticleCard, getArticleImage } from "@/components/site/ArticleCard";
 import { BreakingTicker } from "@/components/site/BreakingTicker";
@@ -13,8 +12,9 @@ import {
 } from "@/lib/articles";
 import { CATEGORY_CONFIG } from "@/lib/constants";
 import { formatSiteDateFull } from "@/lib/utils/date";
+import { notFound } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 /**
  * Route parameters for the article detail page.
@@ -25,14 +25,12 @@ type ArticlePageProps = {
 
 export async function generateMetadata({
   params,
-}: ArticlePageProps): Promise<Metadata> {
+}: ArticlePageProps): Promise<Metadata | Response> {
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
 
   if (!article) {
-    return {
-      title: "Article not found",
-    };
+    return new Response(null, { status: 404 });
   }
 
   return {
