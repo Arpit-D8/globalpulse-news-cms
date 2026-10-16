@@ -6,7 +6,11 @@ import { getCloudinaryConfig } from "@/lib/env";
 
 const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
 
-cloudinary.config({ cloudName, apiKey, apiSecret });
+cloudinary.config({
+  cloud_name: cloudName,
+  api_key: apiKey,
+  api_secret: apiSecret,
+});
 
 // ---------------------------------------------------------------------------
 // Export
