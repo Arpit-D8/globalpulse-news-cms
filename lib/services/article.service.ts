@@ -118,6 +118,7 @@ function toArticle(doc: ArticleDocument): ArticleType {
     featuredImage: toStr(doc.featuredImage),
     tags,
     status: (doc.status ?? "draft") as ArticleType["status"],
+  
     isBreaking: Boolean(doc.isBreaking),
     isFeatured: Boolean(doc.isFeatured),
     seoTitle: doc.seoTitle ?? "",
@@ -459,10 +460,8 @@ async function findAvailableSlug(
 /**
  * Generate a unique slug by appending a numeric suffix if necessary.
  *
- * Uses MongoDB's findOneAndUpdate with upsert to atomically reserve slugs,
- * preventing race conditions from concurrent article creation.
- *
- * e.g. "my-headline" → "my-headline" → "my-headline-1" → "my-headline-2" …
+ * Checks existing article slugs without creating placeholder documents.
+ * The MongoDB unique index remains the final safeguard against collisions.
  */
 export async function generateUniqueSlug(baseSlug: string): Promise<string> {
   if (!baseSlug) {
@@ -471,10 +470,10 @@ export async function generateUniqueSlug(baseSlug: string): Promise<string> {
 
   await connectDB();
 
-  const reserved = await reserveSlugAtomically(baseSlug);
-  if (reserved) {
-    return reserved;
-  }
+  const availableSlug = await findAvailableSlug(baseSlug);
+if (availableSlug) {
+  return availableSlug;
+}
 
   // Fallback: should rarely happen, but use the old non-atomic approach
   // as a last resort (with a very high suffix to minimize collision risk).
