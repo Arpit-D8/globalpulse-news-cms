@@ -435,35 +435,24 @@ export async function deleteArticle(id: string): Promise<void> {
  * Returns the reserved slug string, or null if the base slug is unavailable
  * and all suffix attempts also fail.
  */
-async function reserveSlugAtomically(baseSlug: string): Promise<string | null> {
-  // Attempt to reserve the base slug atomically.
-  const result = await Article.findOneAndUpdate(
-    { slug: baseSlug },
-    { $setOnInsert: { slug: baseSlug } },
-    { upsert: true, returnDocument: "after" }
-  );
-
-  // If the document was just created (upserted), the slug is now reserved.
-  if (result) {
+/**
+ * Find an available slug without inserting placeholder articles.
+ */
+async function findAvailableSlug(
+  baseSlug: string
+): Promise<string | null> {
+  if (!(await Article.exists({ slug: baseSlug }))) {
     return baseSlug;
   }
 
-  // Slug already existed — try with suffixes.
-  let suffix = 1;
-  while (suffix <= 100) {
+  for (let suffix = 1; suffix <= 100; suffix++) {
     const candidate = `${baseSlug}-${suffix}`;
-    const reserved = await Article.findOneAndUpdate(
-      { slug: candidate },
-      { $setOnInsert: { slug: candidate } },
-      { upsert: true, returnDocument: "after" }
-    );
-    if (reserved) {
+
+    if (!(await Article.exists({ slug: candidate }))) {
       return candidate;
     }
-    suffix++;
   }
 
-  // Exhausted suffix attempts — return null to let the caller handle it.
   return null;
 }
 
