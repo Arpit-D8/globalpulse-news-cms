@@ -26,31 +26,46 @@ export default function NewsFetcherPage() {
     }
   }
 
-  async function importNews() {
-    setImporting(true);
-    setError(null);
-    setResult(null);
+async function fetchNews() {
+  setLoading(true);
+  setError(null);
+  setResult(null);
 
-    try {
-      const res = await fetch("/api/news/import", {
-        method: "POST",
-      });
+  try {
+    const res = await fetch("/api/news/fetch", {
+      cache: "no-store",
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.message || "Import failed");
-      }
-
-      setResult(data.data);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Import failed";
-      setError(message);
-      console.error("Import error:", err);
-    } finally {
-      setImporting(false);
+    if (!res.ok || !data.success) {
+      throw new Error(
+        data.error?.message || "Failed to fetch news articles."
+      );
     }
+
+    const fetchedArticles = data.data?.articles ?? [];
+
+    setArticles(fetchedArticles);
+
+    if (fetchedArticles.length === 0) {
+      setError("No articles were returned by the news provider.");
+    }
+  } catch (err) {
+    console.error("Failed to fetch news:", err);
+
+    setArticles([]);
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Failed to fetch news articles."
+    );
+  } finally {
+    setLoading(false);
   }
+}
+
 
   return (
     <div style={{ padding: 30 }}>
