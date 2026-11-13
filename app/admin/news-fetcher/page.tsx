@@ -8,24 +8,7 @@ export default function NewsFetcherPage() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-
-  async function fetchNews() {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const res = await fetch("/api/news/fetch");
-      const data = await res.json();
-      setArticles(data.articles || []);
-    } catch (err) {
-      console.error("Failed to fetch news:", err);
-      setError("Failed to fetch news articles.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
+  
 async function fetchNews() {
   setLoading(true);
   setError(null);
